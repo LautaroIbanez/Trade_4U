@@ -89,8 +89,8 @@ class DashboardInteractivo:
         self.gs_principal = self.fig.add_gridspec(2, 2, width_ratios=[2, 1], height_ratios=[3, 2], 
                                                  hspace=0.3, wspace=0.2)
         
-        # Pestaña Detallado: 2 filas, 3 columnas
-        self.gs_detallado = self.fig.add_gridspec(2, 3, width_ratios=[2, 1, 1], height_ratios=[3, 2], 
+        # Pestaña Detallado: 2 filas, 3 columnas uniformes
+        self.gs_detallado = self.fig.add_gridspec(2, 3, height_ratios=[3, 2], 
                                                  hspace=0.3, wspace=0.2)
         
         # Pestaña Precios: 2 filas, 1 columna (gráfico principal ocupa fila completa, resúmenes en fila inferior)
@@ -99,10 +99,10 @@ class DashboardInteractivo:
     
     def mostrar_pestaña_principal(self, event=None):
         """Muestra la pestaña principal"""
-        # Limpiar todos los subplots excepto los botones
-        for ax in self.fig.get_axes():
-            if ax not in self.axes_botones:
-                ax.clear()
+        # Obtener lista de ejes a remover y eliminarlos completamente
+        axes_to_remove = [ax for ax in self.fig.axes if ax not in self.axes_botones]
+        for ax in axes_to_remove:
+            ax.remove()
         
         # 1. Equity Curve (ocupa toda la primera columna)
         ax1 = self.fig.add_subplot(self.gs_principal[:, 0])
@@ -164,10 +164,10 @@ class DashboardInteractivo:
     
     def mostrar_pestaña_detallado(self, event=None):
         """Muestra la pestaña detallado"""
-        # Limpiar todos los subplots excepto los botones
-        for ax in self.fig.get_axes():
-            if ax not in self.axes_botones:
-                ax.clear()
+        # Obtener lista de ejes a remover y eliminarlos completamente
+        axes_to_remove = [ax for ax in self.fig.axes if ax not in self.axes_botones]
+        for ax in axes_to_remove:
+            ax.remove()
         
         # 1. PnL por Trade (ocupa 2 columnas en fila superior)
         ax1 = self.fig.add_subplot(self.gs_detallado[0, :2])
@@ -239,10 +239,10 @@ class DashboardInteractivo:
     
     def mostrar_pestaña_precios(self, event=None):
         """Muestra la pestaña de precios con operaciones"""
-        # Limpiar todos los subplots excepto los botones
-        for ax in self.fig.get_axes():
-            if ax not in self.axes_botones:
-                ax.clear()
+        # Obtener lista de ejes a remover y eliminarlos completamente
+        axes_to_remove = [ax for ax in self.fig.axes if ax not in self.axes_botones]
+        for ax in axes_to_remove:
+            ax.remove()
         
         # 1. Gráfico principal de precios con operaciones (fila superior completa)
         ax1 = self.fig.add_subplot(self.gs_precios[0, :])
