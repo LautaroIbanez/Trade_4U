@@ -12,7 +12,8 @@ plt.style.use('seaborn-v0_8')
 sns.set_palette("husl")
 
 class DashboardInteractivo:
-    def __init__(self):
+    def __init__(self, symbol='BTC/USDT:USDT'):
+        self.symbol = symbol
         self.df = None
         self.metricas = {}
         self.cargar_datos()
@@ -20,7 +21,19 @@ class DashboardInteractivo:
     
     def cargar_datos(self):
         """Carga y procesa los datos del backtesting"""
-        self.df = pd.read_csv('trades_final.csv')
+        # Construir nombre del archivo basado en el símbolo
+        symbol_slug = self.symbol.replace('/', '_').replace(':', '_')
+        filename = f'trades_final_{symbol_slug}.csv'
+        
+        try:
+            self.df = pd.read_csv(filename)
+        except FileNotFoundError:
+            # Si no existe archivo específico, usar el genérico
+            self.df = pd.read_csv('trades_final.csv')
+            # Si hay columna symbol, filtrar por el símbolo actual
+            if 'symbol' in self.df.columns:
+                self.df = self.df[self.df['symbol'] == self.symbol]
+        
         self.df['entry_time'] = pd.to_datetime(self.df['entry_time'])
         self.df['exit_time'] = pd.to_datetime(self.df['exit_time'])
         self.df['day_key'] = pd.to_datetime(self.df['day_key'])
@@ -47,7 +60,7 @@ class DashboardInteractivo:
         """Crea el dashboard interactivo con pestañas"""
         # Crear figura principal
         self.fig = plt.figure(figsize=(16, 10))
-        self.fig.suptitle('📊 DASHBOARD COMPLETO - BACKTESTING BTC 1TPD', fontsize=14, fontweight='bold', y=0.95)
+        self.fig.suptitle(f'📊 DASHBOARD COMPLETO - BACKTESTING {self.symbol} 1TPD', fontsize=14, fontweight='bold', y=0.95)
         
         # Crear botones de pestañas
         self.crear_botones_pestañas()
@@ -79,14 +92,20 @@ class DashboardInteractivo:
         self.btn_precios = widgets.Button(ax_btn3, '💰 PRECIOS', color='lightcoral', hovercolor='lightcyan')
         self.btn_precios.on_clicked(self.mostrar_pestaña_precios)
         
+        # Selector de símbolos
+        ax_symbol = plt.axes([0.55, 0.92, 0.15, 0.05])
+        self.symbols = ['BTC/USDT:USDT', 'ETH/USDT:USDT', 'ADA/USDT:USDT', 'SOL/USDT:USDT']
+        self.radio_symbols = widgets.RadioButtons(ax_symbol, self.symbols, active=self.symbols.index(self.symbol) if self.symbol in self.symbols else 0)
+        self.radio_symbols.on_clicked(self.cambiar_simbolo)
+        
         # Lista de ejes de botones para conservar al limpiar
-        self.axes_botones = [self.btn_principal.ax, self.btn_detallado.ax, self.btn_precios.ax]
+        self.axes_botones = [self.btn_principal.ax, self.btn_detallado.ax, self.btn_precios.ax, self.radio_symbols.ax]
     
     def crear_area_graficos(self):
         """Crea el área donde se mostrarán los gráficos"""
         # Definir GridSpecs para cada pestaña
-        # Pestaña Principal: 2 filas, 2 columnas (equity curve ocupa columna completa, métricas en columna derecha)
-        self.gs_principal = self.fig.add_gridspec(2, 2, width_ratios=[2, 1], height_ratios=[3, 2], 
+        # Pestaña Principal: 3 filas, 2 columnas (equity curve, drawdown, métricas y análisis)
+        self.gs_principal = self.fig.add_gridspec(3, 2, width_ratios=[2, 1], height_ratios=[3, 1, 1], 
                                                  hspace=0.3, wspace=0.2)
         
         # Pestaña Detallado: 2 filas, 3 columnas uniformes
@@ -104,8 +123,8 @@ class DashboardInteractivo:
         for ax in axes_to_remove:
             ax.remove()
         
-        # 1. Equity Curve (ocupa toda la primera columna)
-        ax1 = self.fig.add_subplot(self.gs_principal[:, 0])
+        # 1. Equity Curve (fila superior, primera columna)
+        ax1 = self.fig.add_subplot(self.gs_principal[0, 0])
         ax1.plot(self.df_sorted['exit_time'], self.df_sorted['pnl_acumulado'], linewidth=2, color='#2E8B57', alpha=0.8)
         ax1.fill_between(self.df_sorted['exit_time'], self.df_sorted['pnl_acumulado'], alpha=0.3, color='#2E8B57')
         ax1.axhline(y=0, color='red', linestyle='--', alpha=0.7, linewidth=1.5)
@@ -115,7 +134,7 @@ class DashboardInteractivo:
         ax1.grid(True, alpha=0.3)
         ax1.tick_params(axis='x', rotation=45)
         
-        # 2. Métricas (columna derecha, fila superior)
+        # 2. Métricas (fila superior, columna derecha)
         ax2 = self.fig.add_subplot(self.gs_principal[0, 1])
         ax2.axis('off')
         metricas_texto = f"""📊 MÉTRICAS
@@ -134,28 +153,40 @@ class DashboardInteractivo:
                  verticalalignment='top', fontfamily='monospace',
                  bbox=dict(boxstyle="round,pad=0.4", facecolor='lightblue', alpha=0.9))
         
-        # 3. R-múltiples (fila inferior, izquierda)
+        # 3. Drawdown (fila media, primera columna)
         ax3 = self.fig.add_subplot(self.gs_principal[1, 0])
-        bins = np.arange(-2, 3, 0.5)
-        ax3.hist(self.df['r_multiple'], bins=bins, alpha=0.7, color='#FF6B6B', edgecolor='black', linewidth=0.6)
-        ax3.axvline(x=0, color='red', linestyle='--', alpha=0.7, linewidth=1.2)
-        ax3.axvline(x=self.metricas['r_multiple_promedio'], color='green', linestyle='-', linewidth=1.2, 
-                   label=f'Prom: {self.metricas["r_multiple_promedio"]:.2f}')
-        ax3.set_title('📈 R-MÚLTIPLES', fontsize=10, fontweight='bold', pad=8)
-        ax3.set_xlabel('R-Múltiple', fontsize=9)
-        ax3.set_ylabel('Frecuencia', fontsize=9)
+        ax3.fill_between(self.df_sorted['exit_time'], self.df_sorted['drawdown'], alpha=0.7, color='#FF4444')
+        ax3.axhline(y=self.metricas['max_drawdown'], color='darkred', linestyle='--', alpha=0.8, linewidth=2,
+                   label=f'Max DD: {self.metricas["max_drawdown"]:.2f} USDT')
+        ax3.set_title('📉 DRAWDOWN', fontsize=10, fontweight='bold', pad=8)
+        ax3.set_ylabel('Drawdown (USDT)', fontsize=9)
         ax3.tick_params(axis='both', labelsize=8)
+        ax3.tick_params(axis='x', rotation=45)
         ax3.legend(fontsize=8)
         ax3.grid(True, alpha=0.3)
         
-        # 4. Ganadores vs Perdedores (fila inferior, derecha)
-        ax4 = self.fig.add_subplot(self.gs_principal[1, 1])
+        # 4. R-múltiples (fila inferior, izquierda)
+        ax4 = self.fig.add_subplot(self.gs_principal[2, 0])
+        bins = np.arange(-2, 3, 0.5)
+        ax4.hist(self.df['r_multiple'], bins=bins, alpha=0.7, color='#FF6B6B', edgecolor='black', linewidth=0.6)
+        ax4.axvline(x=0, color='red', linestyle='--', alpha=0.7, linewidth=1.2)
+        ax4.axvline(x=self.metricas['r_multiple_promedio'], color='green', linestyle='-', linewidth=1.2, 
+                   label=f'Prom: {self.metricas["r_multiple_promedio"]:.2f}')
+        ax4.set_title('📈 R-MÚLTIPLES', fontsize=10, fontweight='bold', pad=8)
+        ax4.set_xlabel('R-Múltiple', fontsize=9)
+        ax4.set_ylabel('Frecuencia', fontsize=9)
+        ax4.tick_params(axis='both', labelsize=8)
+        ax4.legend(fontsize=8)
+        ax4.grid(True, alpha=0.3)
+        
+        # 5. Ganadores vs Perdedores (fila inferior, derecha)
+        ax5 = self.fig.add_subplot(self.gs_principal[2, 1])
         labels = ['Ganadores', 'Perdedores']
         sizes = [self.metricas['trades_ganadores'], self.metricas['trades_perdedores']]
         colors = ['#4CAF50', '#F44336']
-        wedges, texts, autotexts = ax4.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', 
+        wedges, texts, autotexts = ax5.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', 
                                           startangle=90, textprops={'fontsize': 9})
-        ax4.set_title('🎯 GANADORES VS PERDEDORES', fontsize=10, fontweight='bold', pad=8)
+        ax5.set_title('🎯 GANADORES VS PERDEDORES', fontsize=10, fontweight='bold', pad=8)
         
         # Ajustar layout
         self.fig.tight_layout()
@@ -180,16 +211,15 @@ class DashboardInteractivo:
         ax1.tick_params(axis='both', labelsize=9)
         ax1.grid(True, alpha=0.3)
         
-        # 2. Distribución PnL (fila superior, columna derecha)
+        # 2. Drawdown compacto (fila superior, columna derecha)
         ax2 = self.fig.add_subplot(self.gs_detallado[0, 2])
-        ax2.hist(self.df['pnl_usdt'], bins=12, alpha=0.7, color='#9C27B0', edgecolor='black', linewidth=0.6)
-        ax2.axvline(x=0, color='red', linestyle='--', alpha=0.7, linewidth=1.2)
-        ax2.axvline(x=self.metricas['pnl_promedio'], color='green', linestyle='-', linewidth=1.2, 
-                   label=f'Prom: {self.metricas["pnl_promedio"]:.2f}')
-        ax2.set_title('📊 DISTRIBUCIÓN PnL', fontsize=10, fontweight='bold', pad=8)
-        ax2.set_xlabel('PnL (USDT)', fontsize=9)
-        ax2.set_ylabel('Frecuencia', fontsize=9)
+        ax2.fill_between(self.df_sorted['exit_time'], self.df_sorted['drawdown'], alpha=0.7, color='#FF4444')
+        ax2.axhline(y=self.metricas['max_drawdown'], color='darkred', linestyle='--', alpha=0.8, linewidth=1.5,
+                   label=f'Max DD: {self.metricas["max_drawdown"]:.2f}')
+        ax2.set_title('📉 DRAWDOWN', fontsize=10, fontweight='bold', pad=8)
+        ax2.set_ylabel('Drawdown (USDT)', fontsize=9)
         ax2.tick_params(axis='both', labelsize=8)
+        ax2.tick_params(axis='x', rotation=45)
         ax2.legend(fontsize=8)
         ax2.grid(True, alpha=0.3)
         
@@ -219,18 +249,31 @@ class DashboardInteractivo:
         ax4.tick_params(axis='x', rotation=45)
         ax4.grid(True, alpha=0.3)
         
-        # 5. Duración de trades (fila inferior, derecha)
-        ax5 = self.fig.add_subplot(self.gs_detallado[1, 2])
-        self.df['duracion_horas'] = (self.df['exit_time'] - self.df['entry_time']).dt.total_seconds() / 3600
-        ax5.hist(self.df['duracion_horas'], bins=10, alpha=0.7, color='#FF9800', edgecolor='black', linewidth=0.6)
-        ax5.axvline(x=self.df['duracion_horas'].mean(), color='red', linestyle='-', linewidth=1.2, 
-                   label=f'Prom: {self.df["duracion_horas"].mean():.1f}h')
-        ax5.set_title('⏱️ DURACIÓN TRADES', fontsize=10, fontweight='bold', pad=8)
-        ax5.set_xlabel('Duración (horas)', fontsize=9)
+        # 5. Distribución PnL (fila inferior, centro)
+        ax5 = self.fig.add_subplot(self.gs_detallado[1, 1])
+        ax5.hist(self.df['pnl_usdt'], bins=12, alpha=0.7, color='#9C27B0', edgecolor='black', linewidth=0.6)
+        ax5.axvline(x=0, color='red', linestyle='--', alpha=0.7, linewidth=1.2)
+        ax5.axvline(x=self.metricas['pnl_promedio'], color='green', linestyle='-', linewidth=1.2, 
+                   label=f'Prom: {self.metricas["pnl_promedio"]:.2f}')
+        ax5.set_title('📊 DISTRIBUCIÓN PnL', fontsize=10, fontweight='bold', pad=8)
+        ax5.set_xlabel('PnL (USDT)', fontsize=9)
         ax5.set_ylabel('Frecuencia', fontsize=9)
         ax5.tick_params(axis='both', labelsize=8)
         ax5.legend(fontsize=8)
         ax5.grid(True, alpha=0.3)
+        
+        # 6. Duración de trades (fila inferior, derecha)
+        ax6 = self.fig.add_subplot(self.gs_detallado[1, 2])
+        self.df['duracion_horas'] = (self.df['exit_time'] - self.df['entry_time']).dt.total_seconds() / 3600
+        ax6.hist(self.df['duracion_horas'], bins=10, alpha=0.7, color='#FF9800', edgecolor='black', linewidth=0.6)
+        ax6.axvline(x=self.df['duracion_horas'].mean(), color='red', linestyle='-', linewidth=1.2, 
+                   label=f'Prom: {self.df["duracion_horas"].mean():.1f}h')
+        ax6.set_title('⏱️ DURACIÓN TRADES', fontsize=10, fontweight='bold', pad=8)
+        ax6.set_xlabel('Duración (horas)', fontsize=9)
+        ax6.set_ylabel('Frecuencia', fontsize=9)
+        ax6.tick_params(axis='both', labelsize=8)
+        ax6.legend(fontsize=8)
+        ax6.grid(True, alpha=0.3)
         
         # Ajustar layout
         self.fig.tight_layout()
@@ -349,6 +392,17 @@ class DashboardInteractivo:
         self.fig.tight_layout()
         self.fig.subplots_adjust(top=0.88, bottom=0.1, left=0.05, right=0.95)
         plt.draw()
+    
+    def cambiar_simbolo(self, label):
+        """Cambia el símbolo y recarga los datos"""
+        self.symbol = label
+        self.cargar_datos()
+        
+        # Actualizar título
+        self.fig.suptitle(f'📊 DASHBOARD COMPLETO - BACKTESTING {self.symbol} 1TPD', fontsize=14, fontweight='bold', y=0.95)
+        
+        # Refrescar pestaña activa (asumiendo que la principal está activa)
+        self.mostrar_pestaña_principal()
 
 def crear_dashboard_interactivo():
     """Función principal para crear el dashboard interactivo"""
