@@ -78,53 +78,45 @@ class DashboardInteractivo:
         ax_btn3 = plt.axes([0.35, 0.92, 0.12, 0.05])
         self.btn_precios = widgets.Button(ax_btn3, '💰 PRECIOS', color='lightcoral', hovercolor='lightcyan')
         self.btn_precios.on_clicked(self.mostrar_pestaña_precios)
+        
+        # Lista de ejes de botones para conservar al limpiar
+        self.axes_botones = [self.btn_principal.ax, self.btn_detallado.ax, self.btn_precios.ax]
     
     def crear_area_graficos(self):
         """Crea el área donde se mostrarán los gráficos"""
-        # Área principal para los gráficos (2x3)
-        self.ax_principal = []
-        self.ax_detallado = []
+        # Definir GridSpecs para cada pestaña
+        # Pestaña Principal: 2 filas, 2 columnas (equity curve ocupa columna completa, métricas en columna derecha)
+        self.gs_principal = self.fig.add_gridspec(2, 2, width_ratios=[2, 1], height_ratios=[3, 2], 
+                                                 hspace=0.3, wspace=0.2)
         
-        # Crear subplots para pestaña principal
-        for i in range(6):
-            if i < 2:  # Equity curve ocupa 2 columnas
-                ax = plt.subplot(2, 3, (1, 2))
-                self.ax_principal.append(ax)
-                break
-            else:
-                ax = plt.subplot(2, 3, i+1)
-                self.ax_principal.append(ax)
+        # Pestaña Detallado: 2 filas, 3 columnas
+        self.gs_detallado = self.fig.add_gridspec(2, 3, width_ratios=[2, 1, 1], height_ratios=[3, 2], 
+                                                 hspace=0.3, wspace=0.2)
         
-        # Crear subplots para pestaña detallado
-        for i in range(6):
-            if i < 2:  # PnL por trade ocupa 2 columnas
-                ax = plt.subplot(2, 3, (1, 2))
-                self.ax_detallado.append(ax)
-                break
-            else:
-                ax = plt.subplot(2, 3, i+1)
-                self.ax_detallado.append(ax)
+        # Pestaña Precios: 2 filas, 1 columna (gráfico principal ocupa fila completa, resúmenes en fila inferior)
+        self.gs_precios = self.fig.add_gridspec(2, 3, width_ratios=[1, 1, 1], height_ratios=[3, 1], 
+                                               hspace=0.3, wspace=0.2)
     
     def mostrar_pestaña_principal(self, event=None):
         """Muestra la pestaña principal"""
-        # Limpiar todos los subplots
+        # Limpiar todos los subplots excepto los botones
         for ax in self.fig.get_axes():
-            if ax not in [self.btn_principal.ax, self.btn_detallado.ax]:
+            if ax not in self.axes_botones:
                 ax.clear()
         
-        # 1. Equity Curve
-        ax1 = plt.subplot(2, 3, (1, 2))
+        # 1. Equity Curve (ocupa toda la primera columna)
+        ax1 = self.fig.add_subplot(self.gs_principal[:, 0])
         ax1.plot(self.df_sorted['exit_time'], self.df_sorted['pnl_acumulado'], linewidth=2, color='#2E8B57', alpha=0.8)
         ax1.fill_between(self.df_sorted['exit_time'], self.df_sorted['pnl_acumulado'], alpha=0.3, color='#2E8B57')
         ax1.axhline(y=0, color='red', linestyle='--', alpha=0.7, linewidth=1.5)
-        ax1.set_title('💰 EQUITY CURVE', fontsize=11, fontweight='bold', pad=8)
-        ax1.set_ylabel('PnL Acumulado (USDT)', fontsize=9)
-        ax1.tick_params(axis='both', labelsize=8)
+        ax1.set_title('💰 EQUITY CURVE', fontsize=12, fontweight='bold', pad=10)
+        ax1.set_ylabel('PnL Acumulado (USDT)', fontsize=10)
+        ax1.tick_params(axis='both', labelsize=9)
         ax1.grid(True, alpha=0.3)
         ax1.tick_params(axis='x', rotation=45)
         
-        # 2. Métricas
-        ax2 = plt.subplot(2, 3, 3)
+        # 2. Métricas (columna derecha, fila superior)
+        ax2 = self.fig.add_subplot(self.gs_principal[0, 1])
         ax2.axis('off')
         metricas_texto = f"""📊 MÉTRICAS
 
@@ -138,125 +130,122 @@ class DashboardInteractivo:
 🎲 R-Múltiple: {self.metricas['r_multiple_promedio']:.2f}
 
 📉 Max DD: {self.metricas['max_drawdown']:.2f} USDT"""
-        ax2.text(0.05, 0.95, metricas_texto, transform=ax2.transAxes, fontsize=8, 
+        ax2.text(0.05, 0.95, metricas_texto, transform=ax2.transAxes, fontsize=9, 
                  verticalalignment='top', fontfamily='monospace',
-                 bbox=dict(boxstyle="round,pad=0.3", facecolor='lightblue', alpha=0.9))
+                 bbox=dict(boxstyle="round,pad=0.4", facecolor='lightblue', alpha=0.9))
         
-        # 3. R-múltiples
-        ax3 = plt.subplot(2, 3, 4)
+        # 3. R-múltiples (fila inferior, izquierda)
+        ax3 = self.fig.add_subplot(self.gs_principal[1, 0])
         bins = np.arange(-2, 3, 0.5)
         ax3.hist(self.df['r_multiple'], bins=bins, alpha=0.7, color='#FF6B6B', edgecolor='black', linewidth=0.6)
         ax3.axvline(x=0, color='red', linestyle='--', alpha=0.7, linewidth=1.2)
         ax3.axvline(x=self.metricas['r_multiple_promedio'], color='green', linestyle='-', linewidth=1.2, 
                    label=f'Prom: {self.metricas["r_multiple_promedio"]:.2f}')
-        ax3.set_title('📈 R-MÚLTIPLES', fontsize=9, fontweight='bold', pad=6)
-        ax3.set_xlabel('R-Múltiple', fontsize=8)
-        ax3.set_ylabel('Frecuencia', fontsize=8)
-        ax3.tick_params(axis='both', labelsize=7)
-        ax3.legend(fontsize=7)
+        ax3.set_title('📈 R-MÚLTIPLES', fontsize=10, fontweight='bold', pad=8)
+        ax3.set_xlabel('R-Múltiple', fontsize=9)
+        ax3.set_ylabel('Frecuencia', fontsize=9)
+        ax3.tick_params(axis='both', labelsize=8)
+        ax3.legend(fontsize=8)
         ax3.grid(True, alpha=0.3)
         
-        # 4. Ganadores vs Perdedores
-        ax4 = plt.subplot(2, 3, 5)
+        # 4. Ganadores vs Perdedores (fila inferior, derecha)
+        ax4 = self.fig.add_subplot(self.gs_principal[1, 1])
         labels = ['Ganadores', 'Perdedores']
         sizes = [self.metricas['trades_ganadores'], self.metricas['trades_perdedores']]
         colors = ['#4CAF50', '#F44336']
         wedges, texts, autotexts = ax4.pie(sizes, labels=labels, colors=colors, autopct='%1.1f%%', 
-                                          startangle=90, textprops={'fontsize': 8})
-        ax4.set_title('🎯 GANADORES VS PERDEDORES', fontsize=9, fontweight='bold', pad=6)
+                                          startangle=90, textprops={'fontsize': 9})
+        ax4.set_title('🎯 GANADORES VS PERDEDORES', fontsize=10, fontweight='bold', pad=8)
         
-        # 5. Drawdown
-        ax5 = plt.subplot(2, 3, 6)
-        ax5.fill_between(self.df_sorted['exit_time'], self.df_sorted['drawdown'], alpha=0.7, color='#FF4444')
-        ax5.set_title('📉 DRAWDOWN', fontsize=9, fontweight='bold', pad=6)
-        ax5.set_ylabel('Drawdown (USDT)', fontsize=8)
-        ax5.tick_params(axis='both', labelsize=7)
-        ax5.tick_params(axis='x', rotation=45)
-        ax5.grid(True, alpha=0.3)
-        
+        # Ajustar layout
+        self.fig.tight_layout()
+        self.fig.subplots_adjust(top=0.88, bottom=0.1, left=0.05, right=0.95)
         plt.draw()
     
     def mostrar_pestaña_detallado(self, event=None):
         """Muestra la pestaña detallado"""
-        # Limpiar todos los subplots
+        # Limpiar todos los subplots excepto los botones
         for ax in self.fig.get_axes():
-            if ax not in [self.btn_principal.ax, self.btn_detallado.ax]:
+            if ax not in self.axes_botones:
                 ax.clear()
         
-        # 1. PnL por Trade
-        ax1 = plt.subplot(2, 3, (1, 2))
+        # 1. PnL por Trade (ocupa 2 columnas en fila superior)
+        ax1 = self.fig.add_subplot(self.gs_detallado[0, :2])
         colores_pnl = ['#4CAF50' if x > 0 else '#F44336' for x in self.df['pnl_usdt']]
         ax1.bar(range(len(self.df)), self.df['pnl_usdt'], color=colores_pnl, alpha=0.7, edgecolor='black', linewidth=0.2)
         ax1.axhline(y=0, color='black', linestyle='-', alpha=0.5, linewidth=1.2)
-        ax1.set_title('💵 PnL POR TRADE', fontsize=11, fontweight='bold', pad=8)
-        ax1.set_xlabel('Número de Trade', fontsize=9)
-        ax1.set_ylabel('PnL (USDT)', fontsize=9)
-        ax1.tick_params(axis='both', labelsize=8)
+        ax1.set_title('💵 PnL POR TRADE', fontsize=12, fontweight='bold', pad=10)
+        ax1.set_xlabel('Número de Trade', fontsize=10)
+        ax1.set_ylabel('PnL (USDT)', fontsize=10)
+        ax1.tick_params(axis='both', labelsize=9)
         ax1.grid(True, alpha=0.3)
         
-        # 2. Distribución PnL
-        ax2 = plt.subplot(2, 3, 3)
+        # 2. Distribución PnL (fila superior, columna derecha)
+        ax2 = self.fig.add_subplot(self.gs_detallado[0, 2])
         ax2.hist(self.df['pnl_usdt'], bins=12, alpha=0.7, color='#9C27B0', edgecolor='black', linewidth=0.6)
         ax2.axvline(x=0, color='red', linestyle='--', alpha=0.7, linewidth=1.2)
         ax2.axvline(x=self.metricas['pnl_promedio'], color='green', linestyle='-', linewidth=1.2, 
                    label=f'Prom: {self.metricas["pnl_promedio"]:.2f}')
-        ax2.set_title('📊 DISTRIBUCIÓN PnL', fontsize=9, fontweight='bold', pad=6)
-        ax2.set_xlabel('PnL (USDT)', fontsize=8)
-        ax2.set_ylabel('Frecuencia', fontsize=8)
-        ax2.tick_params(axis='both', labelsize=7)
-        ax2.legend(fontsize=7)
+        ax2.set_title('📊 DISTRIBUCIÓN PnL', fontsize=10, fontweight='bold', pad=8)
+        ax2.set_xlabel('PnL (USDT)', fontsize=9)
+        ax2.set_ylabel('Frecuencia', fontsize=9)
+        ax2.tick_params(axis='both', labelsize=8)
+        ax2.legend(fontsize=8)
         ax2.grid(True, alpha=0.3)
         
-        # 3. Trades por día
-        ax3 = plt.subplot(2, 3, 4)
+        # 3. Trades por día (fila inferior, izquierda)
+        ax3 = self.fig.add_subplot(self.gs_detallado[1, 0])
         self.df['dia_semana'] = self.df['entry_time'].dt.day_name()
         dias_orden = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         dias_espanol = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
         trades_por_dia = self.df['dia_semana'].value_counts().reindex(dias_orden, fill_value=0)
         colores = plt.cm.Set3(np.linspace(0, 1, len(trades_por_dia)))
         bars = ax3.bar(dias_espanol, trades_por_dia.values, color=colores, alpha=0.8, edgecolor='black', linewidth=0.6)
-        ax3.set_title('📅 TRADES POR DÍA', fontsize=9, fontweight='bold', pad=6)
-        ax3.set_ylabel('Número', fontsize=8)
-        ax3.tick_params(axis='both', labelsize=7)
+        ax3.set_title('📅 TRADES POR DÍA', fontsize=10, fontweight='bold', pad=8)
+        ax3.set_ylabel('Número', fontsize=9)
+        ax3.tick_params(axis='both', labelsize=8)
         ax3.grid(True, alpha=0.3)
         
-        # 4. Trades por mes
-        ax4 = plt.subplot(2, 3, 5)
+        # 4. Trades por mes (fila inferior, centro)
+        ax4 = self.fig.add_subplot(self.gs_detallado[1, 1])
         self.df['mes'] = self.df['entry_time'].dt.to_period('M')
         trades_por_mes = self.df['mes'].value_counts().sort_index()
         meses_str = [str(mes) for mes in trades_por_mes.index]
         colores_mes = plt.cm.viridis(np.linspace(0, 1, len(trades_por_mes)))
         bars = ax4.bar(meses_str, trades_por_mes.values, color=colores_mes, alpha=0.8, edgecolor='black', linewidth=0.6)
-        ax4.set_title('📅 TRADES POR MES', fontsize=9, fontweight='bold', pad=6)
-        ax4.set_ylabel('Número', fontsize=8)
-        ax4.tick_params(axis='both', labelsize=7)
+        ax4.set_title('📅 TRADES POR MES', fontsize=10, fontweight='bold', pad=8)
+        ax4.set_ylabel('Número', fontsize=9)
+        ax4.tick_params(axis='both', labelsize=8)
         ax4.tick_params(axis='x', rotation=45)
         ax4.grid(True, alpha=0.3)
         
-        # 5. Duración de trades
-        ax5 = plt.subplot(2, 3, 6)
+        # 5. Duración de trades (fila inferior, derecha)
+        ax5 = self.fig.add_subplot(self.gs_detallado[1, 2])
         self.df['duracion_horas'] = (self.df['exit_time'] - self.df['entry_time']).dt.total_seconds() / 3600
         ax5.hist(self.df['duracion_horas'], bins=10, alpha=0.7, color='#FF9800', edgecolor='black', linewidth=0.6)
         ax5.axvline(x=self.df['duracion_horas'].mean(), color='red', linestyle='-', linewidth=1.2, 
                    label=f'Prom: {self.df["duracion_horas"].mean():.1f}h')
-        ax5.set_title('⏱️ DURACIÓN TRADES', fontsize=9, fontweight='bold', pad=6)
-        ax5.set_xlabel('Duración (horas)', fontsize=8)
-        ax5.set_ylabel('Frecuencia', fontsize=8)
-        ax5.tick_params(axis='both', labelsize=7)
-        ax5.legend(fontsize=7)
+        ax5.set_title('⏱️ DURACIÓN TRADES', fontsize=10, fontweight='bold', pad=8)
+        ax5.set_xlabel('Duración (horas)', fontsize=9)
+        ax5.set_ylabel('Frecuencia', fontsize=9)
+        ax5.tick_params(axis='both', labelsize=8)
+        ax5.legend(fontsize=8)
         ax5.grid(True, alpha=0.3)
         
+        # Ajustar layout
+        self.fig.tight_layout()
+        self.fig.subplots_adjust(top=0.88, bottom=0.1, left=0.05, right=0.95)
         plt.draw()
     
     def mostrar_pestaña_precios(self, event=None):
         """Muestra la pestaña de precios con operaciones"""
-        # Limpiar todos los subplots
+        # Limpiar todos los subplots excepto los botones
         for ax in self.fig.get_axes():
-            if ax not in [self.btn_principal.ax, self.btn_detallado.ax, self.btn_precios.ax]:
+            if ax not in self.axes_botones:
                 ax.clear()
         
-        # 1. Gráfico principal de precios con operaciones
-        ax1 = plt.subplot(2, 3, (1, 3))  # Ocupa 3 columnas
+        # 1. Gráfico principal de precios con operaciones (fila superior completa)
+        ax1 = self.fig.add_subplot(self.gs_precios[0, :])
         ax1.plot(self.df_sorted['exit_time'], self.df_sorted['exit_price'], linewidth=1.5, color='#333333', alpha=0.7, label='Precio de Cierre')
         
         # Marcar operaciones de compra (long)
@@ -288,8 +277,8 @@ class DashboardInteractivo:
         ax1.tick_params(axis='x', rotation=45)
         ax1.legend(fontsize=8, loc='upper left')
         
-        # 2. Resumen de operaciones por tipo
-        ax2 = plt.subplot(2, 3, 4)
+        # 2. Resumen de operaciones por tipo (fila inferior, izquierda)
+        ax2 = self.fig.add_subplot(self.gs_precios[1, 0])
         long_count = len(self.df[self.df['side'] == 'long'])
         short_count = len(self.df[self.df['side'] == 'short'])
         long_pnl = self.df[self.df['side'] == 'long']['pnl_usdt'].sum()
@@ -312,8 +301,8 @@ class DashboardInteractivo:
         
         ax2.grid(True, alpha=0.3)
         
-        # 3. PnL por tipo de operación
-        ax3 = plt.subplot(2, 3, 5)
+        # 3. PnL por tipo de operación (fila inferior, centro)
+        ax3 = self.fig.add_subplot(self.gs_precios[1, 1])
         pnl_tipos = [long_pnl, short_pnl]
         colors_pnl = ['#4CAF50' if x > 0 else '#F44336' for x in pnl_tipos]
         
@@ -332,8 +321,8 @@ class DashboardInteractivo:
         
         ax3.grid(True, alpha=0.3)
         
-        # 4. Win Rate por tipo
-        ax4 = plt.subplot(2, 3, 6)
+        # 4. Win Rate por tipo (fila inferior, derecha)
+        ax4 = self.fig.add_subplot(self.gs_precios[1, 2])
         long_wins = len(self.df[(self.df['side'] == 'long') & (self.df['pnl_usdt'] > 0)])
         short_wins = len(self.df[(self.df['side'] == 'short') & (self.df['pnl_usdt'] > 0)])
         long_wr = (long_wins / long_count * 100) if long_count > 0 else 0
@@ -356,6 +345,9 @@ class DashboardInteractivo:
         
         ax4.grid(True, alpha=0.3)
         
+        # Ajustar layout
+        self.fig.tight_layout()
+        self.fig.subplots_adjust(top=0.88, bottom=0.1, left=0.05, right=0.95)
         plt.draw()
 
 def crear_dashboard_interactivo():
