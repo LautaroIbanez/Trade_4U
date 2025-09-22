@@ -166,6 +166,41 @@ python generate_plots.py trades_final.csv --no-save
 ## Project Structure
 
 ```
+
+## Web Dashboard (Dash)
+
+The project includes an interactive web dashboard built with Dash.
+
+### Install extra dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Prepare data
+- Ensure `trades_final.csv` exists in the project root (`btc_1tpd_backtester/`).
+- You can generate/update it by running the backtester examples above.
+
+### Run the web app (development)
+```bash
+python -m webapp.app
+```
+This starts a local server on `http://127.0.0.1:8050`.
+
+### What you get
+- Recomendación de hoy: Uses `signals/today_signal.py:get_today_trade_recommendation` to compute the ORB signal for the current UTC day (status, side, entry time/price, SL/TP, ORB levels, notes).
+- Interactive charts: Equity curve, PnL distribution, drawdown, and trade timeline with hover/zoom/range.
+- Controls: Symbol input and a refresh button. Errors are shown if `trades_final.csv` is missing.
+
+### CLI helper for today recommendation
+```bash
+python -m signals.today_signal --symbol BTC/USDT:USDT
+```
+
+### Configuration notes
+- Default symbol: `BTC/USDT:USDT`
+- ORB window: 11:00–12:00 UTC; Entry window: 11:00–13:00 UTC.
+- Macro bias from 1h EMA50/EMA200 via `indicators.get_macro_bias`.
+- For real intraday live signals you would need live data refresh and credentials; this project fetches public OHLCV from Binance via CCXT.
 btc_1tpd_backtester/
 │── btc_1tpd_backtest_binance.py   # Original complex strategy
 │── btc_1tpd_backtest_final.py     # Recommended working version
